@@ -7,19 +7,21 @@ import csv
 from json import dumps
 from functools import wraps
 from datetime import datetime
+import logging
 
 from flask import Response
 
 from presence_analyzer.main import app
 
-import logging
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 def jsonify(function):
     """
-    Creates a response with the JSON representation of wrapped function result.
+    Creates a response with the JSON representation of wrapped function
+    result.
     """
+
     @wraps(function)
     def inner(*args, **kwargs):
         """
@@ -29,6 +31,7 @@ def jsonify(function):
             dumps(function(*args, **kwargs)),
             mimetype='application/json'
         )
+
     return inner
 
 
@@ -67,7 +70,6 @@ def get_data():
                 log.debug('Problem with line %d: ', i, exc_info=True)
 
             data.setdefault(user_id, {})[date] = {'start': start, 'end': end}
-
     return data
 
 
@@ -92,7 +94,7 @@ def seconds_since_midnight(time):
 
 def interval(start, end):
     """
-    Calculates inverval in seconds between two datetime.time objects.
+    Calculates interval in seconds between two datetime.time objects.
     """
     return seconds_since_midnight(end) - seconds_since_midnight(start)
 
