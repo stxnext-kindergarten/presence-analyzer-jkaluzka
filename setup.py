@@ -1,5 +1,6 @@
-from setuptools import setup, find_packages
 import os
+
+from setuptools import setup, find_packages
 
 name = "presence_analyzer"
 version = "0.1.0"
@@ -27,6 +28,7 @@ setup(
     install_requires=[
         'setuptools',
         'Flask',
+        'mock',
     ],
     entry_points="""
     """,
