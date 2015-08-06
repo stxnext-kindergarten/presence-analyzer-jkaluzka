@@ -6,7 +6,7 @@ Defines views.
 import calendar
 import logging
 
-from flask import redirect, abort
+from flask import abort, render_template, url_for, redirect
 
 from presence_analyzer.main import app
 from presence_analyzer.utils import jsonify, get_data, mean, \
@@ -21,7 +21,36 @@ def mainpage():
     """
     Redirects to front page.
     """
-    return redirect('/static/presence_weekday.html')
+    return redirect(url_for('presence_weekday_page'))
+
+
+@app.route('/presence_weekday', methods=['GET'])
+def presence_weekday_page():
+    """
+    Method returns presence by weekday page using proper template.
+    """
+    title = 'Presence by weekday'
+    return render_template('presence_weekday.html', title=title)
+
+
+@app.route('/mean_time_weekday', methods=['GET'])
+def mean_time_weekday_page():
+    """
+    Method returns mean time presence by weekday page using proper
+    template.
+    """
+    title = 'Presence mean time by weekday'
+    return render_template('mean_time_weekday.html', title=title)
+
+
+@app.route('/start_end_mean_time_weekday', methods=['GET'])
+def start_end_time_weekday_page():
+    """
+    Method returns mean start and end user presence by weekday page
+    using proper template.
+    """
+    title = 'Presence start - end weekday'
+    return render_template('presence_start_end.html', title=title)
 
 
 @app.route('/api/v1/users', methods=['GET'])
