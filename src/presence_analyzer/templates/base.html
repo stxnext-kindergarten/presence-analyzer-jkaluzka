@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang=en>
+    <head>
+        <meta charset=utf-8>
+        <title>Presence analyzer</title>
+        <meta name="keywords" content="" />
+        <meta name="description" content="" />
+        <meta name="author" content="STX Next sp. z o.o." />
+        <meta name="viewport" content="width=device-width; initial-scale=1.0">
+
+        <link href="/static/css/normalize.css" media="all" rel="stylesheet"
+              type="text/css" />
+        <link href="/static/css/style.css" media="all" rel="stylesheet"
+              type="text/css" />
+
+        <script src="/static/js/jquery.min.js"></script>
+        <script type="text/javascript"
+                src="https://www.google.com/jsapi"></script>
+        <script src="/static/js/app.js" type="text/javascript"></script>
+        {% block js %}
+        {% endblock %}
+    </head>
+
+    <body>
+        <div id="main">
+            <div id="header">
+                <h1>Presence analyzer</h1>
+
+                {% include "navigation.html" %}
+            </div>
+            <div id="content">
+                {% block content %}
+                    <h2>{{ title }}</h2>
+                {% endblock %}
+                <p>
+                    <select id="user_id" style="display: none">
+                        <option value="">--</option>
+                    </select>
+                <div id="chart_div" style="display: none">
+                </div>
+                <div id="loading">
+                    <img src="/static/img/loading.gif" />
+                </div>
+                </p>
+            </div>
+        </div>
+    </body>
+</html>

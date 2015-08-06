@@ -52,7 +52,7 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         """
         resp = self.client.get('/')
         self.assertEqual(resp.status_code, 302)
-        assert resp.headers['Location'].endswith('/presence_weekday.html')
+        assert resp.headers['Location'].endswith('/presence_weekday')
 
     def test_api_users(self):
         """
@@ -119,6 +119,32 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         data = json.loads(response.data)
         self.assertEqual(len(data), 7)
         self.assertListEqual(data[3], [u'Thu', 42466.0, 57163.5])
+
+    def test_presence_weekday_page(self):
+        """
+        Test user presence weekday page rendering with proper template.
+        """
+        response = self.client.get('/presence_weekday')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('<h2>Presence by weekday</h2>', response.data)
+
+    def test_mean_time_weekday_page(self):
+        """
+        Test user mean time presence weekday page rendering with proper.
+        template
+        """
+        response = self.client.get('/mean_time_weekday')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('<h2>Presence mean time by weekday</h2>', response.data)
+
+    def test_start_end_time_weekday_page(self):
+        """
+        Test user mean start / end presence time by weekday page
+        rendering with proper template.
+        """
+        response = self.client.get('/start_end_mean_time_weekday')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('<h2>Presence start - end weekday</h2>', response.data)
 
 
 class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
