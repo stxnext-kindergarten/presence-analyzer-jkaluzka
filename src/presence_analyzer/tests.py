@@ -62,7 +62,7 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.content_type, 'application/json')
         data = json.loads(resp.data)
-        self.assertEqual(len(data), 2)
+        self.assertEqual(len(data), 3)
         self.assertDictEqual(data[0], {u'user_id': 10, u'name': u'User 10'})
 
     def test_mean_time_weekday_wrong_user(self):
@@ -102,6 +102,24 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.content_type, 'text/html')
 
+    def test_presence_start_end_wrong_user(self):
+        """
+        Test user weekday view for wrong user
+        """
+        response = self.client.get('/api/v1/presence_start_end/100')
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.content_type, 'text/html')
+
+    def test_presence_start_end_view(self):
+        """
+        Test user presence weekday view
+        """
+        response = self.client.get('/api/v1/presence_start_end/13')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(len(data), 7)
+        self.assertListEqual(data[3], [u'Thu', 42466.0, 57163.5])
+
 
 class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
     """
@@ -132,7 +150,7 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         Test parsing of CSV file.
         """
         data = utils.get_data()
-        self.assertItemsEqual(data.keys(), [10, 11])
+        self.assertItemsEqual(data.keys(), [10, 11, 13])
 
     def test_get_data_read_correctly_values(self):
         """
@@ -222,6 +240,17 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         mean = utils.mean([])
         self.assertIsInstance(mean, int)
         self.assertEqual(mean, 0)
+
+    def test_mean_start_end_time(self):
+        """
+        Test calculating mean values of start and end times of user
+        according to the weekdays
+        """
+        data = utils.get_data()
+        mean_times = utils.get_mean_start_end_time(data[13])
+        self.assertIsInstance(mean_times, list)
+        self.assertEqual(len(mean_times), 7)
+        self.assertTupleEqual(mean_times[1], (33398.0, 54340.5))
 
 
 def suite():

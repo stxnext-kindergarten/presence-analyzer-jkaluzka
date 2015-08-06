@@ -105,3 +105,25 @@ def mean(items):
     Calculates arithmetic mean. Returns zero for empty lists.
     """
     return float(sum(items)) / len(items) if len(items) > 0 else 0
+
+
+def get_mean_start_end_time(items):
+    """
+    Calculates mean starting and ending time for user data get from
+    parameter. Mean values are calculated according to daf of week.
+
+    :param items: user in/out datetime
+    :return: list of tuples (mean_start_time, mean_end_time)
+    """
+    starts = [[] for i in xrange(7)]  # one list for every day in week
+    ends = [[] for i in xrange(7)]  # one list for every day in week
+    for date in items:
+        start = items[date]['start']
+        end = items[date]['end']
+        starts[date.weekday()].append(seconds_since_midnight(start))
+        ends[date.weekday()].append(seconds_since_midnight(end))
+
+    results = [[] for i in xrange(7)]
+    for weekday, day in enumerate(zip(starts, ends)):
+        results[weekday] = (mean(day[0]), mean(day[1]))
+    return results
