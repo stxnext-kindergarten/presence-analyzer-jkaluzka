@@ -29,6 +29,9 @@ setup(
         'setuptools',
         'Flask',
         'mock',
+        'lxml',
+        'requests',
+        'apscheduler==2.1.2'
     ],
     entry_points="""
     [console_scripts]

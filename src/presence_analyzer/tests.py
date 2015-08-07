@@ -7,7 +7,9 @@ import json
 import datetime
 import unittest
 
+from lxml import etree
 import mock
+from requests import ConnectionError
 
 from presence_analyzer import main, utils, views
 
@@ -15,16 +17,11 @@ TEST_DATA_CSV = os.path.join(
     os.path.dirname(__file__), '..', '..', 'runtime', 'data', 'test_data.csv'
 )
 
+TEST_DATA_XML = os.path.join(
+    os.path.dirname(__file__), '..', '..', 'runtime', 'data', 'test_data.xml'
+)
 
-def test_method():
-    """
-    Method returns dictionary for testing purposes.
-    """
-    return {
-        1: 'one',
-        2: 'two',
-        3: 'three'
-    }
+XML_URL = "http://sargo.bolt.stxnext.pl/users.xml"
 
 
 # pylint: disable=maybe-no-member, too-many-public-methods
@@ -38,6 +35,8 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         Before each test, set up a environment.
         """
         main.app.config.update({'DATA_CSV': TEST_DATA_CSV})
+        main.app.config.update({'DATA_XML': TEST_DATA_XML})
+        main.app.config.update({'XML_URL': XML_URL})
         self.client = main.app.test_client()
 
     def tearDown(self):
@@ -63,7 +62,7 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.assertEqual(resp.content_type, 'application/json')
         data = json.loads(resp.data)
         self.assertEqual(len(data), 3)
-        self.assertDictEqual(data[0], {u'user_id': 10, u'name': u'User 10'})
+        self.assertDictEqual(data[0], {u'user_id': 10, u'name': u'Adam P.'})
 
     def test_mean_time_weekday_wrong_user(self):
         """
@@ -146,6 +145,58 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('<h2>Presence start - end weekday</h2>', response.data)
 
+    def test_user_photo_url_api_route(self):
+        """
+        Test user photo url api route.
+        """
+        response = self.client.get('/api/v1/user/10/photo')
+        photo_url = 'https://intranet.stxnext.pl/api/images/users/10'
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertDictEqual(data[0], {"user_photo": photo_url})
+
+
+class MockResponse(object):
+    """
+    Mock class for response objects.
+    """
+
+    def __init__(self, content, status_code):
+        self.content = content
+        self.status_code = status_code
+
+
+def raise_attribute_error(error):
+    """
+    Raise AttributeError
+    """
+    raise AttributeError(2, error)
+
+
+def raise_io_error(error, flag):
+    """
+    Raise IOError
+    """
+    raise IOError(2, '{0} {1}'.format(error, flag))
+
+
+def raise_connection_error(error):
+    """
+    Raise ConnectionError
+    """
+    raise ConnectionError(2, error)
+
+
+def mocked_requests_get(url):
+    """
+    Mock method returns proper http response.
+    """
+    if url == 'wrong_url_path':
+        raise ConnectionError
+    with open(TEST_DATA_XML, 'r') as xml_file:
+        response = MockResponse(xml_file.read(), 200)
+    return response
+
 
 class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
     """
@@ -157,6 +208,8 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         Before each test, set up a environment.
         """
         main.app.config.update({'DATA_CSV': TEST_DATA_CSV})
+        main.app.config.update({'DATA_XML': TEST_DATA_XML})
+        main.app.config.update({'XML_URL': XML_URL})
 
     def tearDown(self):
         """
@@ -210,12 +263,21 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         self.assertEqual(utils.get_data(), {})
 
     @mock.patch('csv.reader')
-    def test_get_data_corrupted_id(self, csv_reader):
+    def test_get_data_corrupted_id_as_string(self, csv_reader):
         """
         Test if method log problem for corrupted id
         """
         csv_reader.return_value = [
             ['wrong', '2013-09-13', '13:16:56', '13:16:56']]
+        self.assertEqual(utils.get_data(), {})
+
+    @mock.patch('csv.reader')
+    def test_get_data_corrupted_id_as_list(self, csv_reader):
+        """
+        Test if method log problem for corrupted id
+        """
+        csv_reader.return_value = [
+            [[1, 2], '2013-09-13', '13:16:56', '13:16:56']]
         self.assertEqual(utils.get_data(), {})
 
     def test_group_by_weekday(self):
@@ -277,6 +339,136 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         self.assertIsInstance(mean_times, list)
         self.assertEqual(len(mean_times), 7)
         self.assertTupleEqual(mean_times[1], (33398.0, 54340.5))
+
+    @mock.patch('requests.get', side_effect=mocked_requests_get)
+    def test_process_request_get(self, mock_requests):
+        """
+        Test processing get request passed as parameters
+        """
+        mock_requests.return_value = ''
+        response = utils.process_request(XML_URL)
+        self.assertEqual(response.status_code, 200)
+
+    @mock.patch('requests.get', side_effect=mocked_requests_get)
+    def test_process_request_post(self, mock_requests):
+        """
+        Test processing post request passed as parameters
+        """
+        mock_requests.return_value = ''
+        response = utils.process_request(XML_URL, 'post')
+        self.assertEqual(response.status_code, 200)
+
+    @mock.patch('requests.get', side_effect=raise_connection_error)
+    def test_process_request_catch_connection_error(self, mock_requests):
+        """
+        Test catching io exception when processing request.
+        """
+        mock_requests.return_value = ''
+        self.assertFalse(utils.process_request(XML_URL))
+
+    @mock.patch('__builtin__.open')
+    def test_downloading_users_information(self, mock_open):
+        """
+        Test downloading xml file from http location to file.
+        """
+        mock_open.return_value = open(XML_URL)
+        data = utils.download_users_information()
+        self.assertTrue(data)
+
+    @mock.patch('__builtin__.open', side_effect=raise_io_error)
+    def test_downloading_users_information_catch_error(self, mock_requests):
+        """
+        Test catching io exception during downloading xml file.
+        """
+        mock_requests.return_value = ''
+        self.assertFalse(utils.download_users_information())
+
+    def test_downloading_users_information_key_error(self):
+        """
+        Test catching io exception during downloading xml file.
+        """
+        main.app.config.pop('XML_URL')
+        self.assertFalse(utils.download_users_information())
+
+    def test_process_xml_file(self):
+        """
+        Test processing xml file
+        """
+        xml = utils.process_xml_file()
+        self.assertIsNotNone(xml)
+        self.assertIsInstance(xml, etree._Element)
+
+    @mock.patch('lxml.etree.fromstring', side_effect=raise_attribute_error)
+    def test_process_xml_file_catch_exception(self, etree_from_string):
+        """
+        Test catching AttributeError during parsing XML file.
+        """
+        etree_from_string.return_value = ''
+        names = utils.process_xml_file()
+        self.assertFalse(names)
+
+    @mock.patch('__builtin__.open', side_effect=raise_io_error)
+    def test_downloading_xml_file_connection_failure(self, mock_open):
+        """
+        Test catching connection failure during downloading xml file.
+        """
+        mock_open.return_value = ''
+        main.app.config.update({'XML_URL': 'wrong_url_path'})
+        self.assertFalse(utils.process_xml_file())
+
+    def test_get_related_xml_values(self):
+        """
+        Test returning proper list of names according to the ids list.
+        """
+        data = utils.get_data()
+
+        names = utils.get_related_xml_values(data.keys())
+        self.assertEqual(len(names.keys()), 3)
+        self.assertEqual(names[10], 'Adam P.')
+        self.assertEqual(names[13], 'Andrzej S.')
+
+    @mock.patch('lxml.etree.fromstring')
+    def test_get_related_xml_values_processing_error(self, mock_etree):
+        """
+        Test returning none if xml file is corrupted.
+        """
+        data = utils.get_data()
+        mock_etree.return_value = 'wrong_string'
+        names = utils.get_related_xml_values(data.keys())
+        self.assertFalse(names)
+
+    @mock.patch('lxml.etree.fromstring')
+    def test_get_related_xml_values_with_empty_items(self, etree_from_string):
+        """
+        Test returning empty dict if ids list is also empty.
+        """
+        etree_from_string.return_value = ''
+        names = utils.get_related_xml_values([])
+        self.assertDictEqual(names, {})
+
+    def test_get_related_xml_values_with_no_matching_id(self):
+        """
+        Test returning default value if id wasn't found in XML file.
+        """
+        names = utils.get_related_xml_values([121])
+        self.assertEqual(len(names.keys()), 1)
+        self.assertEqual(names[121], 'User 121')
+
+    def test_get_user_photo(self):
+        """
+        Test getting user photo.
+        """
+        photo_url = utils.get_user_photo_url(13)
+        correct_url = 'https://intranet.stxnext.pl/api/images/users/13'
+        self.assertIsNotNone(photo_url)
+        self.assertEqual(photo_url, correct_url)
+
+    def test_get_user_photo_wrong_user_id(self):
+        """
+        Test getting user photo.
+        """
+        photo_url = utils.get_user_photo_url('wrong_url')
+        self.assertIsNone(photo_url)
 
 
 def suite():

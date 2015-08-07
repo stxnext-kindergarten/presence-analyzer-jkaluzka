@@ -2,7 +2,6 @@
 # Configuration for use with paster/WSGI
 #
 
-
 [app:main]
 use = egg:${:app}
 
