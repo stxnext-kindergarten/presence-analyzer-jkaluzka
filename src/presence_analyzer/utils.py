@@ -9,7 +9,12 @@ from functools import wraps
 from datetime import datetime
 import logging
 
+from apscheduler.scheduler import Scheduler
+
+from lxml import etree
 from flask import Response
+import requests
+from requests import ConnectionError
 
 from presence_analyzer.main import app
 
@@ -115,15 +120,111 @@ def get_mean_start_end_time(items):
     :param items: user in/out datetime
     :return: list of tuples (mean_start_time, mean_end_time)
     """
-    starts = [[] for i in xrange(7)]  # one list for every day in week
-    ends = [[] for i in xrange(7)]  # one list for every day in week
+    starts = [[] for _ in xrange(7)]  # one list for every day in week
+    ends = [[] for _ in xrange(7)]  # one list for every day in week
     for date in items:
         start = items[date]['start']
         end = items[date]['end']
         starts[date.weekday()].append(seconds_since_midnight(start))
         ends[date.weekday()].append(seconds_since_midnight(end))
 
-    results = [[] for i in xrange(7)]
+    results = [[] for _ in xrange(7)]
     for weekday, day in enumerate(zip(starts, ends)):
         results[weekday] = (mean(day[0]), mean(day[1]))
     return results
+
+
+def download_users_information():
+    """
+    Download xml file from http localization set in config file.
+    """
+    try:
+        xml_file = process_request(app.config['XML_URL'])
+        with open(app.config['DATA_XML'], 'w') as output_file:
+            return output_file.write(xml_file.content)
+    except IOError as error:
+        log.error('error during saving xml_content to file\n%s', error)
+    except KeyError:
+        log.warning('application start first time, some keys are not '
+                    'available yet')
+
+
+def process_xml_file():
+    """
+    Read XML file and returns object.
+    """
+    try:
+        with open(app.config['DATA_XML'], 'r') as xml_file:
+            tree = etree.fromstring(xml_file.read())
+        return tree
+    except AttributeError as error:
+        log.error("parsing xml failed\n%s", error)
+    except IOError as error:
+        log.error('reading from file fails\n%s', error)
+
+
+def process_request(url, method='get'):
+    """
+    Method execute request to url provided as parameter. Default
+    method is GET
+    """
+    try:
+        if method.lower() == 'post':
+            return requests.post(url)
+        return requests.get(url)
+    except ConnectionError as error:
+        log.error('network error - file wasn\'t downloaded\n%s', error)
+
+
+def get_related_xml_values(items):
+    """
+    Returns list of user name according to list provided as parameter.
+
+    :param items: list of user ids
+    :return: list of user names
+    """
+    try:
+        tree = process_xml_file()
+        users_names = {}
+        for user_id in items:
+            user_name = tree.xpath("//user[@id='%s']/name/text()" % user_id)
+            try:
+                users_names[user_id] = user_name[0]
+            except IndexError:
+                log.warning('User name for id %d wasn\'t found', user_id)
+                users_names[user_id] = 'User {}'.format(user_id)
+        return users_names
+    except AttributeError as error:
+        log.error('processing xml file fails\n%s', error)
+
+
+def get_user_photo_url(user_id):
+    """
+    Return image from external api according to the user id.
+    """
+    tree = process_xml_file()
+    try:
+        host = tree.xpath('server/host/text()')
+        protocol = tree.xpath('server/protocol/text()')
+        img_path = tree.xpath("//user[@id='{}']/avatar/text()".format(user_id))
+        return '{0}://{1}{2}'.format(protocol[0], host[0], img_path[0])
+    except IndexError as error:
+        log.warning('creating photo url failed.\n%s', error)
+
+
+def download_user_info_scheduler():
+    """
+    Create and prepare scheduler for downloading xml data from url.
+    """
+    scheduler = Scheduler()
+    scheduler.start()
+
+    # backup Schedule to run once every 4 hours
+    day_of_week = app.config.get('cron_day_of_week_pattern', '*')
+    hour = app.config.get('cron_hour_pattern', '*/4')
+    minute = app.config.get('cron_minutes_pattern', '*')
+    scheduler.add_cron_job(download_users_information, day_of_week=day_of_week,
+                           hour=hour, minute=minute)
+
+
+download_user_info_scheduler()

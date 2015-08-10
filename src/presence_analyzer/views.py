@@ -10,8 +10,8 @@ from flask import abort, render_template, url_for, redirect
 
 from presence_analyzer.main import app
 from presence_analyzer.utils import jsonify, get_data, mean, \
-    group_by_weekday, \
-    get_mean_start_end_time
+    group_by_weekday, get_mean_start_end_time, get_related_xml_values, \
+    get_user_photo_url
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -59,14 +59,27 @@ def users_view():
     """
     Users listing for dropdown.
     """
-    data = get_data()
+    data = get_related_xml_values(get_data().keys())
     return [
         {
-            'user_id': i,
-            'name': 'User {0}'.format(str(i)),
+            'user_id': user_id,
+            'name': user_name,
         }
-        for i in data.keys()
+        for user_id, user_name in data.items()
         ]
+
+
+@app.route('/api/v1/user/<int:user_id>/photo', methods=['GET'])
+@jsonify
+def user_photo_view(user_id):
+    """
+    User photo loaded from external api.
+    """
+    return [
+        {
+            'user_photo': get_user_photo_url(user_id)
+        }
+    ]
 
 
 @app.route('/api/v1/mean_time_weekday/<int:user_id>', methods=['GET'])

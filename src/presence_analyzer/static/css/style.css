@@ -21,6 +21,7 @@ body {
 #chart_div {
     width: 750px;
     height: 750px;
+    margin-top: 10px;
 }
 
 #header ul {
@@ -60,4 +61,8 @@ body {
     background: white;
     color: black;
     font-weight: bold;
+}
+
+.user_image {
+    margin-left: 320px;
 }
