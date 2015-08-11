@@ -9,9 +9,11 @@ import unittest
 
 from lxml import etree
 import mock
+
 from requests import ConnectionError
 
 from presence_analyzer import main, utils, views
+from presence_analyzer.utils import cache_data
 
 TEST_DATA_CSV = os.path.join(
     os.path.dirname(__file__), '..', '..', 'runtime', 'data', 'test_data.csv'
@@ -198,6 +200,17 @@ def mocked_requests_get(url):
     return response
 
 
+def mocked_cache(url):
+    """
+    Mock caching decorator
+    """
+    if url == 'wrong_url_path':
+        raise ConnectionError
+    with open(TEST_DATA_XML, 'r') as xml_file:
+        response = MockResponse(xml_file.read(), 200)
+    return response
+
+
 class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
     """
     Utility functions tests.
@@ -210,6 +223,7 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         main.app.config.update({'DATA_CSV': TEST_DATA_CSV})
         main.app.config.update({'DATA_XML': TEST_DATA_XML})
         main.app.config.update({'XML_URL': XML_URL})
+        main.app.config.update({'CACHE_DATA': False})
 
     def tearDown(self):
         """
@@ -269,7 +283,8 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         """
         csv_reader.return_value = [
             ['wrong', '2013-09-13', '13:16:56', '13:16:56']]
-        self.assertEqual(utils.get_data(), {})
+        data = utils.get_data
+        self.assertEqual(data(), {})
 
     @mock.patch('csv.reader')
     def test_get_data_corrupted_id_as_list(self, csv_reader):
@@ -469,6 +484,31 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         """
         photo_url = utils.get_user_photo_url('wrong_url')
         self.assertIsNone(photo_url)
+
+    def test_cache_data_decorator(self):
+        """
+        Test cache data decorator.
+        """
+
+        @cache_data(seconds=10)
+        def empty_function():
+            """ Empty function """
+            return []
+        empty_function().append('test')
+        self.assertListEqual(empty_function(), [])
+
+        main.app.config.update({'CACHE_DATA': 'True'})
+
+        @cache_data(1)
+        def add_function(beta, gamma=10):
+            """ Simple function prepared for test caching """
+            add_function.alfa += 1
+            return add_function.alfa + beta + gamma
+        add_function.alfa = 0
+
+        self.assertEqual(add_function(-1), 10)
+        self.assertEqual(add_function(-1), add_function(-1))
+        self.assertEqual(add_function(-1), add_function(-1))
 
 
 def suite():

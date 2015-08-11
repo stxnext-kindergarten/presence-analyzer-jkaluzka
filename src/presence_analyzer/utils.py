@@ -2,15 +2,15 @@
 """
 Helper functions used in views.
 """
-
+from copy import deepcopy
 import csv
 from json import dumps
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+from threading import RLock
 
 from apscheduler.scheduler import Scheduler
-
 from lxml import etree
 from flask import Response
 import requests
@@ -40,6 +40,50 @@ def jsonify(function):
     return inner
 
 
+def cache_data(seconds=0):
+    """
+    Decorator for caching data in memory.
+    """
+    delta = timedelta(seconds=seconds)
+
+    def decorate(function):
+        """
+        Main decorator function.
+        """
+        function.lock = RLock()
+        updates = {}
+        results = {}
+
+        def do_cache(*args, **kwargs):
+            """
+            Cache method.
+            """
+            should_cache = app.config.get('CACHE_DATA', True)
+            cache_lock = function.lock
+            cache_lock.acquire()
+            try:
+                now = datetime.now()
+                updated = updates.get(function, now)
+                old_data = function not in results or now - updated > delta
+
+                if not should_cache or old_data:
+                    # Calculate
+                    updates[function] = now
+                    result = function(*args, **kwargs)
+                    results[function] = deepcopy(result)
+                    return result
+                else:
+                    # Cache
+                    return deepcopy(results[function])
+            finally:
+                cache_lock.release()
+
+        return do_cache
+
+    return decorate
+
+
+@cache_data(600)
 def get_data():
     """
     Extracts presence data from CSV file and groups it by user_id.
