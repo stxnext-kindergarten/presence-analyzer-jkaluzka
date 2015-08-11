@@ -27,16 +27,22 @@ google.load("visualization", "1", {
 
         $('#user_id').change(function () {
             var selected_user = $("#user_id").val();
-            $.getJSON('/api/v1/user/' + selected_user + '/photo', function (result) {
-                $.each(result, function (item) {
-                    $('#user_photo').html('<img src=' + this.user_photo + '>');
-                });
-            });
             var chart_div = $('#chart_div');
-            if (selected_user) {
-                loading.show();
+            var photo_div = $('#user_photo');
+            if (selected_user.length != 0) {
+                $.getJSON('/api/v1/user/' + selected_user + '/photo', function (result) {
+                    $.each(result, function (item) {
+                        photo_div.html('<img src=' + this.user_photo + '>');
+                    });
+                });
+                if (selected_user) {
+                    loading.show();
+                    chart_div.hide();
+                    load_data(selected_user, chart_div, loading);
+                }
+            } else {
                 chart_div.hide();
-                load_data(selected_user, chart_div, loading);
+                photo_div.hide();
             }
         });
     });

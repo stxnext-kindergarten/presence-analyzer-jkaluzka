@@ -9,15 +9,13 @@
                 });
                 var data = new google.visualization.DataTable();
                 data.addColumn('string', 'Weekday');
-                data.addColumn('datetime', 'Mean time (h:m:s)');
+                data.addColumn('datetime', 'Mean time (hh:mm:ss)');
                 data.addRows(result);
                 var options = {
                     hAxis: {title: 'Weekday'}
                 };
                 var formatter = new google.visualization.DateFormat({pattern: 'HH:mm:ss'});
                 formatter.format(data, 1);
-
-
                 chart_div.show();
                 loading.hide();
                 var chart = new google.visualization.ColumnChart(chart_div[0]);

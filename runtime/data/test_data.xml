@@ -5,20 +5,20 @@
         <protocol>https</protocol>
     </server>
     <users>
-        <user id="10">
-            <avatar>/api/images/users/10</avatar>
-            <name>Adam P.</name>
-        </user>
-        <user id="11">
-            <avatar>/api/images/users/11</avatar>
-            <name>Adrian K.</name>
-        </user>
         <user id="12">
             <avatar>/api/images/users/12</avatar>
-            <name>Agata J.</name>
+            <name>Adam P.</name>
+        </user>
+        <user id="10">
+            <avatar>/api/images/users/10</avatar>
+            <name>Adrian K.</name>
         </user>
         <user id="13">
             <avatar>/api/images/users/13</avatar>
+            <name>Agata J.</name>
+        </user>
+        <user id="11">
+            <avatar>/api/images/users/11</avatar>
             <name>Andrzej S.</name>
         </user>
     </users>

@@ -3,7 +3,7 @@
 Defines views.
 """
 
-import calendar
+import locale
 import logging
 
 from flask import abort, render_template, url_for, redirect
@@ -11,9 +11,10 @@ from flask import abort, render_template, url_for, redirect
 from presence_analyzer.main import app
 from presence_analyzer.utils import jsonify, get_data, mean, \
     group_by_weekday, get_mean_start_end_time, get_related_xml_values, \
-    get_user_photo_url
+    get_user_photo_url, get_monthly_worked_hours, weekday_abbr
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+locale.setlocale(locale.LC_ALL, '')
 
 
 @app.route('/')
@@ -49,8 +50,17 @@ def start_end_time_weekday_page():
     Method returns mean start and end user presence by weekday page
     using proper template.
     """
-    title = 'Presence start - end weekday'
+    title = 'Mean working hours'
     return render_template('presence_start_end.html', title=title)
+
+
+@app.route('/monthly_worked_hours', methods=['GET'])
+def monthly_worked_hours_page():
+    """
+    Method returns monthly worked hours page using proper template.
+    """
+    title = 'Monthly worked hours'
+    return render_template('month_worked_hour.html', title=title)
 
 
 @app.route('/api/v1/users', methods=['GET'])
@@ -60,13 +70,14 @@ def users_view():
     Users listing for dropdown.
     """
     data = get_related_xml_values(get_data().keys())
-    return [
+    users = [
         {
             'user_id': user_id,
             'name': user_name,
         }
         for user_id, user_name in data.items()
         ]
+    return sorted(users, key=lambda x: x['name'], cmp=locale.strcoll)
 
 
 @app.route('/api/v1/user/<int:user_id>/photo', methods=['GET'])
@@ -95,7 +106,7 @@ def mean_time_weekday_view(user_id):
 
     weekdays = group_by_weekday(data[user_id])
     result = [
-        (calendar.day_abbr[weekday], mean(intervals))
+        (weekday_abbr(weekday), mean(intervals))
         for weekday, intervals in enumerate(weekdays)
         ]
 
@@ -115,11 +126,11 @@ def presence_weekday_view(user_id):
 
     weekdays = group_by_weekday(data[user_id])
     result = [
-        (calendar.day_abbr[weekday], sum(intervals))
+        (weekday_abbr(weekday), sum(intervals))
         for weekday, intervals in enumerate(weekdays)
         ]
 
-    result.insert(0, ('Weekday', 'Presence (s)'))
+    result.insert(0, ('Weekday', 'Presence (hours)'))
     return result
 
 
@@ -136,7 +147,20 @@ def start_end_time_view(user_id):
 
     mean_start_end_times = get_mean_start_end_time(data[user_id])
     results = [
-        (calendar.day_abbr[weekday], mean_times[0], mean_times[1])
+        (weekday_abbr(weekday), mean_times[0], mean_times[1])
         for weekday, mean_times in enumerate(mean_start_end_times)
         ]
     return results
+
+
+@app.route('/api/v1/monthly_worked_hours/<int:user_id>', methods=['GET'])
+@jsonify
+def monthly_worked_hours_view(user_id):
+    """
+    Returns monthly worked hours of given user
+    """
+    data = get_data()
+    if user_id not in data:
+        log.debug('User %s not found!', user_id)
+        abort(404)
+    return get_monthly_worked_hours(data[user_id])

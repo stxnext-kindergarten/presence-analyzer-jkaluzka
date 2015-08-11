@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block js %}
+    <script type="text/javascript">
+        load_data = function (selected_user, chart_div, loading) {
+            $.getJSON("/api/v1/monthly_worked_hours/" + selected_user, function (result) {
+                if (result.length > 2) {
+                    var data = new google.visualization.arrayToDataTable(result);
+                    var chart = new google.visualization.BarChart(chart_div[0]);
+                    var options = {hAxis: {title: "Hours worked in month"}};
+                    chart_div.show();
+                    loading.hide();
+                    chart.draw(data, options);
+                } else {
+                    loading.hide();
+                    $('#msg').innerHTML = "<h2>No data for this user</h2>";
+                }
+            });
+        };
+        link = '/monthly_worked_hours';
+    </script>
+{% endblock %}
