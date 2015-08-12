@@ -4,8 +4,13 @@
     <script type="text/javascript">
         load_data = function (selected_user, chart_div, loading) {
             $.getJSON("/api/v1/presence_weekday/" + selected_user, function (result) {
+                $.each(result, function (index, value) {
+                    if (index > 0) {
+                        value[1] = parseFloat((value[1] / 3600).toFixed(2));
+                    }
+                });
                 var data = google.visualization.arrayToDataTable(result);
-                var options = {};
+                var options = {'title': result[0][1]};
                 chart_div.show();
                 loading.hide();
                 var chart = new google.visualization.PieChart(chart_div[0]);

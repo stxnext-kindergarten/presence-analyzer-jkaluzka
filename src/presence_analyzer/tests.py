@@ -63,8 +63,8 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.content_type, 'application/json')
         data = json.loads(resp.data)
-        self.assertEqual(len(data), 3)
-        self.assertDictEqual(data[0], {u'user_id': 10, u'name': u'Adam P.'})
+        self.assertEqual(len(data), 6)
+        self.assertDictEqual(data[0], {u'user_id': 10, u'name': u'Adrian K.'})
 
     def test_mean_time_weekday_wrong_user(self):
         """
@@ -145,7 +145,15 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         """
         response = self.client.get('/start_end_mean_time_weekday')
         self.assertEqual(response.status_code, 200)
-        self.assertIn('<h2>Presence start - end weekday</h2>', response.data)
+        self.assertIn('<h2>Mean working hours</h2>', response.data)
+
+    def test_monthly_worked_hours_page(self):
+        """
+        Test monthly worked hours page rendering with proper template.
+        """
+        response = self.client.get('/monthly_worked_hours')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('<h2>Monthly worked hours</h2>', response.data)
 
     def test_user_photo_url_api_route(self):
         """
@@ -156,6 +164,28 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertDictEqual(data[0], {"user_photo": photo_url})
+
+    def test_default_user_photo_url_api_route(self):
+        """
+        Test default photo.
+        """
+        response = self.client.get('/api/v1/user/10000/photo')
+        photo_url = 'https://intranet.stxnext.pl/api/images/users/1'
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertDictEqual(data[0], {"user_photo": photo_url})
+
+    def test_monthly_worked_hours_api_route(self):
+        """
+        Test monthly worked hour api route.
+        """
+        response = self.client.get('/api/v1/monthly_worked_hours/10')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertListEqual(data[0], ['Year', '2013'])
+        self.assertListEqual(data[9], ['Sep', 21])
+        response = self.client.get('/api/v1/monthly_worked_hours/1111')
+        self.assertEqual(response.status_code, 404)
 
 
 class MockResponse(object):
@@ -243,7 +273,7 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         Test parsing of CSV file.
         """
         data = utils.get_data()
-        self.assertItemsEqual(data.keys(), [10, 11, 13])
+        self.assertItemsEqual(data.keys(), [10, 11, 13, 14, 15, 141])
 
     def test_get_data_read_correctly_values(self):
         """
@@ -438,9 +468,9 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         data = utils.get_data()
 
         names = utils.get_related_xml_values(data.keys())
-        self.assertEqual(len(names.keys()), 3)
-        self.assertEqual(names[10], 'Adam P.')
-        self.assertEqual(names[13], 'Andrzej S.')
+        self.assertEqual(len(names.keys()), 6)
+        self.assertEqual(names[10], 'Adrian K.')
+        self.assertEqual(names[13], 'Agata J.')
 
     @mock.patch('lxml.etree.fromstring')
     def test_get_related_xml_values_processing_error(self, mock_etree):
@@ -467,7 +497,7 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         """
         names = utils.get_related_xml_values([121])
         self.assertEqual(len(names.keys()), 1)
-        self.assertEqual(names[121], 'User 121')
+        self.assertEqual(names[121], 'User  121')
 
     def test_get_user_photo(self):
         """
@@ -480,10 +510,11 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
 
     def test_get_user_photo_wrong_user_id(self):
         """
-        Test getting user photo.
+        Test getting user default photo.
         """
         photo_url = utils.get_user_photo_url('wrong_url')
-        self.assertIsNone(photo_url)
+        default_photo_url = 'https://intranet.stxnext.pl/api/images/users/1'
+        self.assertEqual(photo_url, default_photo_url)
 
     def test_cache_data_decorator(self):
         """
@@ -494,6 +525,7 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         def empty_function():
             """ Empty function """
             return []
+
         empty_function().append('test')
         self.assertListEqual(empty_function(), [])
 
@@ -504,11 +536,47 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
             """ Simple function prepared for test caching """
             add_function.alfa += 1
             return add_function.alfa + beta + gamma
+
         add_function.alfa = 0
 
         self.assertEqual(add_function(-1), 10)
         self.assertEqual(add_function(-1), add_function(-1))
         self.assertEqual(add_function(-1), add_function(-1))
+
+    def test_time_separated_by_months(self):
+        """
+        Test gathering times separated for years nad months related to
+        them.
+        """
+        data = utils.get_data()
+        years_data = utils.time_separated_by_months(data[10])
+        self.assertIsNotNone(years_data)
+        self.assertDictEqual(years_data, {2013: {9: [30047, 23705, 24465]}})
+
+    def test_group_time_by_month_year(self):
+        """
+        Test grouping monthly worked hours by months in year.
+        """
+        years = {2013: {9: [30047, 23705, 24465]}}
+        grouped_data = utils.group_time_by_month_year(years)
+        self.assertEqual(len(grouped_data[2013]), 12)
+        self.assertListEqual(grouped_data[2013][8], ['Sep', 21])
+
+    @mock.patch('presence_analyzer.utils.time_separated_by_months')
+    def test_get_monthly_worked_hours(self, years_dict):
+        """
+        Test getting average working hours for each month.
+        """
+        years_dict.return_value = {2013: {9: [30047, 23705, 24465]}}
+        output = utils.get_monthly_worked_hours({})
+        self.assertListEqual(output[0], ['Year', '2013'])
+        self.assertListEqual(output[9], ['Sep', 21])
+
+    def test_weekday_abbr(self):
+        """
+        Test returning correct weekday abbreviation.
+        """
+        self.assertEqual(utils.weekday_abbr(2), 'Wed')
 
 
 def suite():

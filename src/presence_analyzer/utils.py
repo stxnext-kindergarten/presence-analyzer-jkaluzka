@@ -2,11 +2,13 @@
 """
 Helper functions used in views.
 """
+import calendar
 from copy import deepcopy
 import csv
 from json import dumps
 from functools import wraps
 from datetime import datetime, timedelta
+import locale
 import logging
 from threading import RLock
 
@@ -19,6 +21,7 @@ from requests import ConnectionError
 from presence_analyzer.main import app
 
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
+locale.setlocale(locale.LC_ALL, 'pl_PL.UTF-8')
 
 
 def jsonify(function):
@@ -32,10 +35,8 @@ def jsonify(function):
         """
         This docstring will be overridden by @wraps decorator.
         """
-        return Response(
-            dumps(function(*args, **kwargs)),
-            mimetype='application/json'
-        )
+        json_data = dumps(function(*args, **kwargs), )
+        return Response(json_data, mimetype='application/json')
 
     return inner
 
@@ -121,6 +122,13 @@ def get_data():
 
             data.setdefault(user_id, {})[date] = {'start': start, 'end': end}
     return data
+
+
+def weekday_abbr(weekday):
+    """
+    Returns weekday abbreviation according to the passed number of day.
+    """
+    return calendar.day_abbr[weekday].decode('utf8')
 
 
 def group_by_weekday(items):
@@ -236,7 +244,7 @@ def get_related_xml_values(items):
                 users_names[user_id] = user_name[0]
             except IndexError:
                 log.warning('User name for id %d wasn\'t found', user_id)
-                users_names[user_id] = 'User {}'.format(user_id)
+                users_names[user_id] = 'User %s' % str(user_id).rjust(4, ' ')
         return users_names
     except AttributeError as error:
         log.error('processing xml file fails\n%s', error)
@@ -251,9 +259,59 @@ def get_user_photo_url(user_id):
         host = tree.xpath('server/host/text()')
         protocol = tree.xpath('server/protocol/text()')
         img_path = tree.xpath("//user[@id='{}']/avatar/text()".format(user_id))
-        return '{0}://{1}{2}'.format(protocol[0], host[0], img_path[0])
+        photo_url = '{0}://{1}{2}'.format(protocol[0], host[0], img_path[0])
     except IndexError as error:
         log.warning('creating photo url failed.\n%s', error)
+        photo_url = "https://intranet.stxnext.pl/api/images/users/1"
+    return photo_url
+
+
+def time_separated_by_months(items):
+    """
+    Returns dictionary with Years and list of months related to it.
+    """
+    years = {}
+    for date, times in items.iteritems():
+        years.setdefault(date.year, {})
+        years[date.year].setdefault(date.month, [])
+        years[date.year][date.month].append(
+            interval(times['start'], times['end'])
+        )
+    return years
+
+
+def group_time_by_month_year(years):
+    """
+    Sum monthly worked hours for each year in dict passed as parameter.
+    """
+    result = {}
+    for month in xrange(1, 13):
+        for year, data in years.iteritems():
+            result.setdefault(year, [])
+            try:
+                month_data = data[month]
+                result[year].append(
+                    [calendar.month_abbr[month], sum(month_data) / 3600]
+                )
+            except KeyError:
+                result[year].append([calendar.month_abbr[month], 0])
+    return result
+
+
+def get_monthly_worked_hours(items):
+    """
+    Returns average working hours for each month in year.
+    """
+    years = time_separated_by_months(items)
+    grouped_result = group_time_by_month_year(years)
+    output = [['Year'] + map(str, years.iterkeys())]
+
+    for month in xrange(12):
+        month_data = [calendar.month_abbr[month + 1]]
+        for month_values in grouped_result.itervalues():
+            month_data.append(month_values[month][1])
+        output.append(month_data)
+    return output
 
 
 def download_user_info_scheduler():
@@ -266,7 +324,7 @@ def download_user_info_scheduler():
     # backup Schedule to run once every 4 hours
     day_of_week = app.config.get('cron_day_of_week_pattern', '*')
     hour = app.config.get('cron_hour_pattern', '*/4')
-    minute = app.config.get('cron_minutes_pattern', '*')
+    minute = app.config.get('cron_minutes_pattern', '0')
     scheduler.add_cron_job(download_users_information, day_of_week=day_of_week,
                            hour=hour, minute=minute)
 
